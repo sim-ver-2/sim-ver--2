@@ -2733,6 +2733,10 @@ def create_complete_release_zip(
                             target_width = resize_config.get('width')
                             target_height = resize_config.get('height')
                             
+                            # Check if resize dimensions are valid
+                            if not target_width or not target_height:
+                                raise ValueError(f"Invalid resize dimensions: width={target_width}, height={target_height}")
+                            
                             from PIL import Image as PILImage
                             pil_img = PILImage.open(original_path).convert('RGB')
                             original_dims = pil_img.size
