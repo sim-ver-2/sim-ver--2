@@ -3262,7 +3262,9 @@ def create_complete_release_zip(
                                         
                                         transformed_annotations = apply_transformations_to_annotations(
                                             annotations=img_data["annotations"],
-                                            tracking_data=transformation_tracking_data
+                                            tracking_data=transformation_tracking_data,
+                                            task_type=config.task_type,
+                                            export_format=config.export_format
                                         )
                                         
                                         print(f"🔍 DEBUG: Transformation result: {len(transformed_annotations)} annotations")
@@ -3367,7 +3369,9 @@ def create_complete_release_zip(
                                         if transformation_tracking_data and transformation_tracking_data.get("has_geometric_transforms", False):
                                             fallback_annotations = apply_transformations_to_annotations(
                                                 annotations=img_data["annotations"],
-                                                tracking_data=transformation_tracking_data
+                                                tracking_data=transformation_tracking_data,
+                                                task_type=config.task_type,
+                                                export_format=config.export_format
                                             )
                                         else:
                                             fallback_annotations = img_data["annotations"]
@@ -4174,7 +4178,7 @@ def track_transformations_for_annotations(transformations: List[dict], original_
     return tracking_data
 
 
-def apply_transformations_to_annotations(annotations: List, tracking_data: dict) -> List:
+def apply_transformations_to_annotations(annotations: List, tracking_data: dict, task_type: str = "object_detection", export_format: str = "yolo_detection") -> List:
     """
     Apply the same transformations to annotations that were applied to images.
     
@@ -4208,6 +4212,47 @@ def apply_transformations_to_annotations(annotations: List, tracking_data: dict)
         print(f"❌ NO ANNOTATIONS TO TRANSFORM - returning empty list")
         logger.debug("operations.transformations", f"No annotations to transform", "annotation_transformation_empty", {})
         return []
+    
+    # 🎯 ANNOTATION FILTERING: Filter annotations based on task type and export format
+    print(f"🎯 ANNOTATION FILTERING: task_type='{task_type}', export_format='{export_format}'")
+    
+    # Determine what to process based on task type and export format
+    if task_type == "object_detection" or export_format in ["yolo_detection", "yolo"]:
+        should_process_bbox = True
+        should_process_polygon = False
+        print(f"   🎯 DETECTION MODE: Processing ONLY bounding boxes")
+    elif task_type == "segmentation" or export_format in ["yolo_segmentation"]:
+        should_process_bbox = False
+        should_process_polygon = True
+        print(f"   🎯 SEGMENTATION MODE: Processing ONLY polygons")
+    else:
+        # Mixed mode - process both (fallback for formats like COCO)
+        should_process_bbox = True
+        should_process_polygon = True
+        print(f"   🎯 MIXED MODE: Processing both bounding boxes and polygons")
+    
+    # Filter annotations based on task requirements
+    filtered_annotations = []
+    for annotation in annotations:
+        if hasattr(annotation, 'x_min') and hasattr(annotation, 'x_max'):  # BoundingBox
+            if should_process_bbox:
+                filtered_annotations.append(annotation)
+                print(f"   ✅ BBOX PROCESSED: {getattr(annotation, 'class_name', 'unknown')}")
+            else:
+                print(f"   ⏭️  BBOX SKIPPED: {getattr(annotation, 'class_name', 'unknown')} (task_type={task_type})")
+        elif hasattr(annotation, 'points'):  # Polygon
+            if should_process_polygon:
+                filtered_annotations.append(annotation)
+                print(f"   ✅ POLYGON PROCESSED: {getattr(annotation, 'class_name', 'unknown')}")
+            else:
+                print(f"   ⏭️  POLYGON SKIPPED: {getattr(annotation, 'class_name', 'unknown')} (task_type={task_type})")
+        else:
+            # Unknown annotation type - include it to be safe
+            filtered_annotations.append(annotation)
+            print(f"   ❓ UNKNOWN TYPE PROCESSED: {getattr(annotation, 'class_name', 'unknown')}")
+    
+    print(f"🎯 FILTERING RESULT: {len(annotations)} → {len(filtered_annotations)} annotations")
+    annotations = filtered_annotations
     
     print(f"🔍 CHECKING has_geometric_transforms:")
     print(f"   tracking_data.get('has_geometric_transforms'): {tracking_data.get('has_geometric_transforms')}")
