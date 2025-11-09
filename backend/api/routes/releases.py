@@ -2733,6 +2733,10 @@ def create_complete_release_zip(
                             target_width = resize_config.get('width')
                             target_height = resize_config.get('height')
                             
+                            # Check if resize dimensions are valid
+                            if not target_width or not target_height:
+                                raise ValueError(f"Invalid resize dimensions: width={target_width}, height={target_height}")
+                            
                             from PIL import Image as PILImage
                             pil_img = PILImage.open(original_path).convert('RGB')
                             original_dims = pil_img.size
@@ -3262,7 +3266,9 @@ def create_complete_release_zip(
                                         
                                         transformed_annotations = apply_transformations_to_annotations(
                                             annotations=img_data["annotations"],
-                                            tracking_data=transformation_tracking_data
+                                            tracking_data=transformation_tracking_data,
+                                            task_type=config.task_type,
+                                            export_format=config.export_format
                                         )
                                         
                                         print(f"🔍 DEBUG: Transformation result: {len(transformed_annotations)} annotations")
@@ -3367,7 +3373,9 @@ def create_complete_release_zip(
                                         if transformation_tracking_data and transformation_tracking_data.get("has_geometric_transforms", False):
                                             fallback_annotations = apply_transformations_to_annotations(
                                                 annotations=img_data["annotations"],
-                                                tracking_data=transformation_tracking_data
+                                                tracking_data=transformation_tracking_data,
+                                                task_type=config.task_type,
+                                                export_format=config.export_format
                                             )
                                         else:
                                             fallback_annotations = img_data["annotations"]
@@ -4174,7 +4182,7 @@ def track_transformations_for_annotations(transformations: List[dict], original_
     return tracking_data
 
 
-def apply_transformations_to_annotations(annotations: List, tracking_data: dict) -> List:
+def apply_transformations_to_annotations(annotations: List, tracking_data: dict, task_type: str = "object_detection", export_format: str = "yolo_detection") -> List:
     """
     Apply the same transformations to annotations that were applied to images.
     
@@ -4208,6 +4216,13 @@ def apply_transformations_to_annotations(annotations: List, tracking_data: dict)
         print(f"❌ NO ANNOTATIONS TO TRANSFORM - returning empty list")
         logger.debug("operations.transformations", f"No annotations to transform", "annotation_transformation_empty", {})
         return []
+    
+    # 🎯 ANNOTATION FILTERING: TEMPORARILY DISABLED FOR DEBUGGING
+    print(f"🎯 ANNOTATION FILTERING: DISABLED - task_type='{task_type}', export_format='{export_format}'")
+    print(f"   📝 Processing ALL annotations (filtering disabled for debugging)")
+    
+    # TODO: Re-enable filtering after confirming this fixes the release creation issue
+    # Original filtering logic commented out to isolate the problem
     
     print(f"🔍 CHECKING has_geometric_transforms:")
     print(f"   tracking_data.get('has_geometric_transforms'): {tracking_data.get('has_geometric_transforms')}")
